@@ -1,7 +1,15 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/RyanWatson425/logging-dashboard/utils"
+)
 
 func main() {
-	fmt.Println("hello world")
+	logs, err := utils.GetRecentLogs(("5m"))
+	if err != nil {
+		fmt.Printf("Failed to call GetRecentLogs: %v", err)
+	}
+	fmt.Println(logs)
 }

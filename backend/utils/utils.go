@@ -20,10 +20,10 @@ func executeLogCommand(args ...string) ([]byte, error) {
 	return output, nil
 }
 
-func GetRecentLogs(last string) (string, error) {
-	output, err := executeLogCommand("show", "--last", last)
+func GetRecentLogs(last string) ([]byte, error) {
+	output, err := executeLogCommand("show", "--last", last, "--style", "json", "--info", "--debug")
 	if err != nil {
-		return "", fmt.Errorf("Failed to get logs from last %s: %v", last, err)
+		return nil, fmt.Errorf("Failed to get logs from last %s: %v", last, err)
 	}
-	return string(output), nil
+	return output, nil
 }

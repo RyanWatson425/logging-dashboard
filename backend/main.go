@@ -3,42 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
 
 	"github.com/RyanWatson425/logging-dashboard/utils"
 )
-
-// {
-//   "timezoneName" : "",
-//   "messageType" : "Default",
-//   "eventType" : "logEvent",
-//   "source" : null,
-//   "formatString" : "[%@] Dispatching digitizer event with %lu children,%@ _eventMask=0x%lx _childEventMask=0x%lx Cancel=%d Touching=%ld inRange=%ld",
-//   "userID" : 88,
-//   "activityIdentifier" : 0,
-//   "subsystem" : "com.apple.Multitouch",
-//   "category" : "Plugin",
-//   "threadID" : 46308219,
-//   "senderImageUUID" : "13B9BBE0-A09C-31A3-8812-6FCA5CC5066A",
-//   "backtrace" : {
-//     "frames" : [
-//       {
-//         "imageOffset" : 177920,
-//         "imageUUID" : "13B9BBE0-A09C-31A3-8812-6FCA5CC5066A"
-//       }
-//     ]
-//   },
-//   "bootUUID" : "A11698FE-2303-48AD-A8C0-18D1B9380C34",
-//   "processImagePath" : "\/System\/Library\/PrivateFrameworks\/SkyLight.framework\/Versions\/A\/Resources\/WindowServer",
-//   "senderImagePath" : "\/System\/Library\/HIDPlugins\/ServicePlugins\/HSTouchHIDService.plugin\/Contents\/MacOS\/HSTouchHIDService",
-//   "timestamp" : "2026-05-07 19:48:34.701580-0500",
-//   "machTimestamp" : 88435680572874,
-//   "eventMessage" : "[TP] Dispatching digitizer event with 2 children, _eventMask=0x2 _childEventMask=0x2 Cancel=0 Touching=0 inRange=1",
-//   "processImageUUID" : "4C4CDB5D-365C-32AF-BAFD-F68C76A4F625",
-//   "traceID" : 5073052195487748,
-//   "processID" : 453,
-//   "senderProgramCounter" : 177920,
-//   "parentActivityIdentifier" : 0
-// }
 
 type Frame struct {
 	ImageOffset int `json:"imageOffset"`
@@ -103,27 +72,41 @@ func LogToLogSummary(logs []Log) []LogSummary {
 	return retVal
 }
 
-func main() {
+func handleGetLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, fmt.Sprintf("Method %s is not supported ", r.Method), http.StatusMethodNotAllowed)
+		return
+	}
 	marshalledLogs, err := utils.GetRecentLogs("15s")
-
 	if err != nil {
-		fmt.Printf("Failed to call GetRecentLogs: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to call GetRecentLogs: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	var logs []Log
 	err = json.Unmarshal(marshalledLogs, &logs)
-
 	if err != nil {
-		fmt.Printf("Failed to marshal logs: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to unmarshal logs: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	summarizedLogs := LogToLogSummary(logs)
-
-	// temp - for testing
 	printableLogs, err := json.MarshalIndent(summarizedLogs, "", "  ")
 	if err != nil {
-		fmt.Printf("Failed to Marshal summarized logs: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to marshal summarized logs: %v", err), http.StatusInternalServerError)
+		return
 	}
 
-	fmt.Println(string(printableLogs))
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(printableLogs)
+}
+
+func main() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/logs", handleGetLogs)
+
+	fmt.Printf("listening on %s\n", "localhost:8080")
+	if err := http.ListenAndServe("localhost:8080", mux); err != nil {
+		fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
+	}
 }

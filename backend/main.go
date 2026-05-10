@@ -76,11 +76,14 @@ type Log struct {
 }
 
 type LogSummary struct {
-	MessageType string
-	UserID uint64
-	Timestamp string
-	Message string
-	ProcessID uint64
+	MessageType string // enum ["", "Info", "Error", "Default", "Debug"] 
+	Timestamp string // YYYY-MM-DD HH:MM:SS.mmmmmm[+_]ZZZZ
+	EventMessage string // readable log content
+	Subsystem string // system component (ex. com.apple.bluetooth)
+	Category string // activity type (ex. connection, Plugin)
+	ProcessID uint64 // which process generated the log
+	ProcessImagePath string // human readable app name (ex. /usr/libexec/bluetoothd)
+	UserID uint64 // 0 root user, 1-499 system/daemon users, 501-999 human users, 1000+ Network/Mobile/Active Directory accounts
 }
 
 func LogToLogSummary(logs []Log) []LogSummary {
@@ -88,10 +91,13 @@ func LogToLogSummary(logs []Log) []LogSummary {
 	for i, log := range logs {
 		retVal[i] = LogSummary{
 			MessageType: log.MessageType,
-			UserID: log.UserID,
 			Timestamp: log.Timestamp,
-			Message: log.EventMessage,
+			EventMessage: log.EventMessage,
+			Subsystem: log.Subsystem,
+			Category: log.Category,
 			ProcessID: log.ProcessID,
+			ProcessImagePath: log.ProcessImagePath,
+			UserID: log.UserID,
 		}
 	}
 	return retVal
@@ -112,11 +118,12 @@ func main() {
 	}
 
 	summarizedLogs := LogToLogSummary(logs)
-	fmt.Println("Marshalled Logs")
-	fmt.Println(string(marshalledLogs))
-	fmt.Println("JSON Logs")
-	fmt.Println(logs)
-	fmt.Println("Summarized Logs")
-	// TOOD: marshall back to get in printable format
-	fmt.Println(summarizedLogs)
+
+	// temp - for testing
+	printableLogs, err := json.MarshalIndent(summarizedLogs, "", "  ")
+	if err != nil {
+		fmt.Printf("Failed to Marshal summarized logs: %v", err)
+	}
+
+	fmt.Println(string(printableLogs))
 }

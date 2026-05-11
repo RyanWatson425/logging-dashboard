@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"slices"
 
 	"github.com/RyanWatson425/logging-dashboard/utils"
 )
@@ -71,12 +73,30 @@ func LogToLogSummary(logs []Log) []LogSummary {
 	return retVal
 }
 
+func filterLogLevels(logs []LogSummary, logLevels []string) []LogSummary{
+	filteredLogs := []LogSummary{}
+	for _, log := range logs {
+		if slices.Contains(logLevels, log.MessageType) {
+			filteredLogs = append(filteredLogs, log)
+		}
+	}
+
+	return filteredLogs
+}
+
 
 func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, fmt.Sprintf("Method %s is not supported ", r.Method), http.StatusMethodNotAllowed)
 		return
 	}
+
+	parsedUrl, err := url.Parse(r.URL.String())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to parse query params: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	marshalledLogs, err := utils.GetRecentLogs("15s")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to call GetRecentLogs: %v", err), http.StatusInternalServerError)
@@ -91,6 +111,15 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	summarizedLogs := LogToLogSummary(logs)
+	queryParamsMap := parsedUrl.Query()
+	if queryParamsMap.Has("logLevels") {
+		var logLevels []string
+		err := json.Unmarshal([]byte(queryParamsMap.Get("logLevels")), &logLevels)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to unmarhsal logLevels query parameter: %v", err), http.StatusBadRequest)
+		}
+		summarizedLogs = filterLogLevels(summarizedLogs, logLevels)
+	}
 	printableLogs, err := json.MarshalIndent(summarizedLogs, "", "  ")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to marshal summarized logs: %v", err), http.StatusInternalServerError)

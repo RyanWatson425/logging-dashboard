@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"time"
 
 	"github.com/RyanWatson425/logging-dashboard/utils"
 )
@@ -73,7 +74,7 @@ func LogToLogSummary(logs []Log) []LogSummary {
 	return retVal
 }
 
-func filterLogLevels(logs []LogSummary, logLevels []string) []LogSummary{
+func filterLogLevels(logs []LogSummary, logLevels []string) []LogSummary {
 	filteredLogs := []LogSummary{}
 	for _, log := range logs {
 		if slices.Contains(logLevels, log.MessageType) {
@@ -82,6 +83,28 @@ func filterLogLevels(logs []LogSummary, logLevels []string) []LogSummary{
 	}
 
 	return filteredLogs
+}
+
+func fetchLogs(shouldRefresh bool) ([]LogSummary, time.Time, error) {
+	currentLogs := GetLogs()
+	if currentLogs == nil || shouldRefresh {
+		marshalledLogs, fetchedAt, err := utils.GetRecentLogs("15s")
+
+		if err != nil {
+			return nil, time.Time{}, fmt.Errorf("Failed to call GetRecentLogs: %v", err)
+		}
+
+		var logs []Log
+		err = json.Unmarshal(marshalledLogs, &logs)
+		if err != nil {
+			return nil, time.Time{}, fmt.Errorf("Failed to unmarshal logs: %v", err)
+		}
+
+		currentLogs = LogToLogSummary(logs)
+		SetLogs(currentLogs, fetchedAt)
+	}
+
+	return currentLogs, GetFetchedAt(), nil
 }
 
 
@@ -96,22 +119,17 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to parse query params: %v", err), http.StatusBadRequest)
 		return
 	}
-
-	marshalledLogs, err := utils.GetRecentLogs("15s")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to call GetRecentLogs: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	var logs []Log
-	err = json.Unmarshal(marshalledLogs, &logs)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to unmarshal logs: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	summarizedLogs := LogToLogSummary(logs)
 	queryParamsMap := parsedUrl.Query()
+
+	shouldRefresh := false
+	if queryParamsMap.Has("shouldRefresh") {
+		shouldRefresh = true
+	}
+	summarizedLogs, fetchedAt, err := fetchLogs(shouldRefresh)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to call fetchLogs: %v", err), http.StatusInternalServerError)
+	}
+
 	if queryParamsMap.Has("logLevels") {
 		var logLevels []string
 		err := json.Unmarshal([]byte(queryParamsMap.Get("logLevels")), &logLevels)
@@ -120,12 +138,15 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		summarizedLogs = filterLogLevels(summarizedLogs, logLevels)
 	}
-	printableLogs, err := json.MarshalIndent(summarizedLogs, "", "  ")
+
+	returnBody := struct{ FetchedAt time.Time `json:"fetchedAt"`; Logs []LogSummary `json:"logs"` }{ FetchedAt: fetchedAt, Logs: summarizedLogs }
+
+	jsonReturnBody, err := json.MarshalIndent(returnBody, "", "  ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to marshal summarized logs: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to marshal HandleGetLogs return body: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(printableLogs)
+	w.Write(jsonReturnBody)
 }

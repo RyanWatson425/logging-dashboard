@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@virtuoso.dev/data-table": "^0.1.0"
+  }
+}

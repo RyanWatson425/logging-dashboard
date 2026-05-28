@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/RyanWatson425/logging-dashboard/utils"
@@ -74,10 +75,29 @@ func LogToLogSummary(logs []Log) []LogSummary {
 	return retVal
 }
 
-func filterLogLevels(logs []LogSummary, logLevels []string) []LogSummary {
+func filterLogs(logs []LogSummary, logLevels []string, processes []uint64) []LogSummary {
+	shouldFilterLevels := len(logLevels) > 0
+	shouldFilterProcesses := len(processes) > 0
+	if !shouldFilterLevels && !shouldFilterProcesses {
+		return logs
+	}
+
+	shouldRetainLogLevel := func (log LogSummary) bool {
+		if !shouldFilterLevels || slices.Contains(logLevels, log.MessageType) {
+			return true
+		}
+		return false
+	}
+	shouldRetainProcess := func (log LogSummary) bool {
+		if !shouldFilterProcesses || slices.Contains(processes, log.ProcessID) {
+			return true
+		}
+		return false
+	}
+
 	filteredLogs := []LogSummary{}
 	for _, log := range logs {
-		if slices.Contains(logLevels, log.MessageType) {
+		if shouldRetainLogLevel(log) && shouldRetainProcess(log) {
 			filteredLogs = append(filteredLogs, log)
 		}
 	}
@@ -85,9 +105,18 @@ func filterLogLevels(logs []LogSummary, logLevels []string) []LogSummary {
 	return filteredLogs
 }
 
-func fetchLogs(shouldRefresh bool) ([]LogSummary, time.Time, error) {
+type LogQueryParams struct {
+	Page int
+	PageSize int
+	LogLevels []string
+	shouldRefresh bool
+	processes []uint64
+}
+
+func fetchLogs(queryParams LogQueryParams) ([]LogSummary, time.Time, error) {
 	currentLogs := GetLogs()
-	if currentLogs == nil || shouldRefresh {
+	// Fetch raw logs
+	if currentLogs == nil || queryParams.shouldRefresh {
 		marshalledLogs, fetchedAt, err := utils.GetRecentLogs("15s")
 
 		if err != nil {
@@ -104,9 +133,22 @@ func fetchLogs(shouldRefresh bool) ([]LogSummary, time.Time, error) {
 		SetLogs(currentLogs, fetchedAt)
 	}
 
+	// Filter by query params
+	currentLogs = filterLogs(currentLogs, queryParams.LogLevels, queryParams.processes)
+
+	// Handle pagination
+	pageStartIdx := queryParams.PageSize * queryParams.Page
+	pageEndIdx := queryParams.PageSize + queryParams.PageSize * queryParams.Page
+	if len(currentLogs) < pageStartIdx {
+		currentLogs = make([]LogSummary, 0)
+	} else if len(currentLogs) > pageStartIdx && len(currentLogs) <= pageEndIdx {
+		currentLogs = currentLogs[pageStartIdx:]
+	} else {
+		currentLogs = currentLogs[pageStartIdx:pageEndIdx]
+	}
+
 	return currentLogs, GetFetchedAt(), nil
 }
-
 
 func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -125,19 +167,47 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	if queryParamsMap.Has("shouldRefresh") {
 		shouldRefresh = true
 	}
-	summarizedLogs, fetchedAt, err := fetchLogs(shouldRefresh)
+	currentPage := 0
+	if queryParamsMap.Has("page") {
+		currentPage, err = strconv.Atoi(queryParamsMap.Get("page"))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to convert page query parameter to int: %v", err), http.StatusBadRequest)
+		}
+	}
+	logLevels := make([]string, 0)
+	if queryParamsMap.Has("logLevels") {
+		err := json.Unmarshal([]byte(queryParamsMap.Get("logLevels")), &logLevels)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to unmarshal logLevels query parameter: %v", err), http.StatusBadRequest)
+		}
+	}
+	processes := make([]uint64, 0)
+	if queryParamsMap.Has("processes") {
+		err := json.Unmarshal([]byte(queryParamsMap.Get("processes")), &processes)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to unmarshal processes query parameter: %v", err), http.StatusBadRequest)
+		}
+	}
+	queryParams := LogQueryParams{
+		Page: currentPage,
+		PageSize: 20,
+		LogLevels: logLevels,
+		shouldRefresh: shouldRefresh,
+		processes: processes,
+	}
+	summarizedLogs, fetchedAt, err := fetchLogs(queryParams)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to call fetchLogs: %v", err), http.StatusInternalServerError)
 	}
 
-	if queryParamsMap.Has("logLevels") {
-		var logLevels []string
-		err := json.Unmarshal([]byte(queryParamsMap.Get("logLevels")), &logLevels)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to unmarhsal logLevels query parameter: %v", err), http.StatusBadRequest)
-		}
-		summarizedLogs = filterLogLevels(summarizedLogs, logLevels)
-	}
+	// if queryParamsMap.Has("logLevels") {
+	// 	var logLevels []string
+	// 	err := json.Unmarshal([]byte(queryParamsMap.Get("logLevels")), &logLevels)
+	// 	if err != nil {
+	// 		http.Error(w, fmt.Sprintf("Failed to unmarhsal logLevels query parameter: %v", err), http.StatusBadRequest)
+	// 	}
+	// 	summarizedLogs = filterLogLevels(summarizedLogs, logLevels)
+	// }
 
 	returnBody := struct{ FetchedAt time.Time `json:"fetchedAt"`; Logs []LogSummary `json:"logs"` }{ FetchedAt: fetchedAt, Logs: summarizedLogs }
 

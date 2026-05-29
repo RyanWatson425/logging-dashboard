@@ -1,7 +1,8 @@
 import "./App.css";
+import LogDataGrid from "./components/LogDataGrid";
 
 const App = () => {
-  return <div>test</div>;
+  return <LogDataGrid />;
 };
 
 export default App;

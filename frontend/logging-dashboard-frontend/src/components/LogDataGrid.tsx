@@ -3,32 +3,33 @@ import {
   Column,
   ColumnHeader,
   VirtuosoDataTable,
-  localModel,
+  defaultAppendViewportHandler,
+  remoteModel,
 } from "@virtuoso.dev/data-table";
+import { useState } from "react";
 
-//  MessageType string // enum ["", "Info", "Error", "Default", "Debug"]
-// 	Timestamp string // YYYY-MM-DD HH:MM:SS.mmmmmm[+_]ZZZZ
-// 	EventMessage string // readable log content
-// 	Subsystem string // system component (ex. com.apple.bluetooth)
-// 	Category string // activity type (ex. connection, Plugin)
-// 	ProcessID uint64 // which process generated the log
-// 	ProcessImagePath string // human readable app name (ex. /usr/libexec/bluetoothd)
-// 	UserID uint64 // 0 root user, 1-499 syst
-type MessageType = "" | "Info" | "Error" | "Default" | "Debug";
+import { PAGE_SIZE } from "../constants";
+import {
+  fetchLogs,
+  type Logs,
+  type FetchLogsParams,
+} from "../hooks/useFetchLogs";
 
-interface Logs {
-  messageType: MessageType;
-  timestamp: string;
-  subsystem: string;
-  category: string;
-  processId: number;
-  processImagePath: string;
-  userId: number;
-}
-
-const model = localModel<Logs>({ data: [] });
-
+// TODO: make column into reusable component
+// TODO: use hook to fetch logging data
+// TODO: include header buttons somewhere to toggle visiblity of columns
+// TODO: allow for searching
+// TODO: build a menu for filtering columns
 const LogDataGrid = () => {
+  const [model] = useState(() =>
+    remoteModel<Logs, FetchLogsParams>({
+      mode: "append",
+      fetch: fetchLogs,
+      initialParams: {},
+      onViewportChange: defaultAppendViewportHandler,
+      pageSize: PAGE_SIZE,
+    }),
+  );
   return (
     <VirtuosoDataTable
       model={model}
@@ -130,7 +131,7 @@ const LogDataGrid = () => {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {Number(cellValue)}
+              {String(cellValue)}
             </div>
           )}
         </Cell>
@@ -164,7 +165,7 @@ const LogDataGrid = () => {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {Number(cellValue)}
+              {String(cellValue)}
             </div>
           )}
         </Cell>

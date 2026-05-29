@@ -209,7 +209,7 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	// 	summarizedLogs = filterLogLevels(summarizedLogs, logLevels)
 	// }
 
-	returnBody := struct{ FetchedAt time.Time `json:"fetchedAt"`; Logs []LogSummary `json:"logs"` }{ FetchedAt: fetchedAt, Logs: summarizedLogs }
+	returnBody := struct{ FetchedAt time.Time `json:"fetchedAt"`; Data []LogSummary `json:"data"` }{ FetchedAt: fetchedAt, Data: summarizedLogs }
 
 	jsonReturnBody, err := json.MarshalIndent(returnBody, "", "  ")
 	if err != nil {

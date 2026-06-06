@@ -1,8 +1,4 @@
 import axios from "axios";
-import type {
-  AppendFetchParams,
-  AppendFetchResult,
-} from "@virtuoso.dev/data-table";
 
 //  MessageType string // enum ["", "Info", "Error", "Default", "Debug"]
 // 	Timestamp string // YYYY-MM-DD HH:MM:SS.mmmmmm[+_]ZZZZ
@@ -40,42 +36,45 @@ export interface GetLogsResponse {
 }
 
 export interface FetchLogsParams {
-  pageSize?: number;
+  page?: number;
+  limit?: number;
   processes?: string[];
   logLevels?: MessageType[];
   shouldRefresh?: boolean;
+  signal?: AbortSignal;
+}
+
+export interface FetchLogsResult {
+  rows: Logs[];
+  hasMore: boolean;
+  page: number;
 }
 
 export const fetchLogs = async ({
-  cursor,
-  limit,
-  params,
+  page = 0,
+  limit = 50,
+  processes,
+  logLevels,
+  shouldRefresh,
   signal,
-}: AppendFetchParams<FetchLogsParams>): Promise<AppendFetchResult<Logs>> => {
+}: FetchLogsParams): Promise<FetchLogsResult> => {
   const url = new URL("http://localhost:8080/logs");
 
-  // Use cursor as page number (cursor is 0 for first page)
-  const page = (cursor as number) || 0;
   url.searchParams.set("page", String(page));
   url.searchParams.set("pageSize", String(limit));
 
-  if (params.processes) {
-    url.searchParams.set("processes", params.processes.toString());
+  if (processes) {
+    url.searchParams.set("processes", processes.toString());
   }
-  if (params.logLevels) {
-    url.searchParams.set("logLevels", params.logLevels.toString());
+  if (logLevels) {
+    url.searchParams.set("logLevels", logLevels.toString());
   }
-  if (params.shouldRefresh) {
-    url.searchParams.set("shouldRefresh", String(params.shouldRefresh));
+  if (shouldRefresh) {
+    url.searchParams.set("shouldRefresh", String(shouldRefresh));
   }
 
   const response = await axios.get<GetLogsResponse>(url.toString(), { signal });
 
-  // Determine if there are more pages based on whether we received a full page
-  const hasMore = response.data.data.length === limit;
-
-  // Increment cursor for next page
-  const nextCursor = hasMore ? page + 1 : page;
   const formattedLogs = response.data.data.map((responseLog) => ({
     messageType: responseLog.MessageType,
     eventMessage: responseLog.EventMessage,
@@ -87,9 +86,12 @@ export const fetchLogs = async ({
     userId: responseLog.UserID,
   }));
 
+  // Determine if there are more pages based on whether we received a full page
+  const hasMore = formattedLogs.length === limit;
+
   return {
     rows: formattedLogs,
     hasMore,
-    cursor: nextCursor,
+    page: hasMore ? page + 1 : page,
   };
 };

@@ -3,14 +3,55 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import type { ColumnDef } from "@tanstack/react-table";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ColumnDef, Row } from "@tanstack/react-table";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+  Dispatch,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { PAGE_SIZE } from "../constants";
 import { fetchLogs, type Logs } from "../hooks/useFetchLogs";
+import { ChevronRight, ChevronDown } from "lucide-react";
 
 const STORAGE_KEY = "log-grid-column-widths";
+
+interface RenderRowExpandParams {
+  row: Row<Logs>;
+  expandedRows: Set<string>;
+  setExpandedRows: Dispatch<SetStateAction<Set<string>>>;
+}
+
+const renderRowExpand = ({
+  row,
+  expandedRows,
+  setExpandedRows,
+}: RenderRowExpandParams) => {
+  const isExpanded = expandedRows.has(row.id);
+  if (isExpanded) {
+    return (
+      <ChevronDown
+        onClick={() => {
+          expandedRows.delete(row.id);
+          setExpandedRows(new Set<string>(expandedRows));
+        }}
+      />
+    );
+  }
+  return (
+    <ChevronRight
+      onClick={() => {
+        expandedRows.add(row.id);
+        setExpandedRows(new Set<string>(expandedRows));
+      }}
+    />
+  );
+};
 
 export default function LogDataGrid() {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -19,6 +60,9 @@ export default function LogDataGrid() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState<number>(0);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(
+    new Set<string>(),
+  );
 
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(
     () => {
@@ -63,6 +107,12 @@ export default function LogDataGrid() {
 
   const columns = useMemo<ColumnDef<Logs>[]>(
     () => [
+      {
+        accessorKey: "expandButton",
+        header: "",
+        size: 32,
+        minSize: 32,
+      },
       {
         accessorKey: "messageType",
         header: "Log Level",
@@ -115,7 +165,7 @@ export default function LogDataGrid() {
   const virtualizer = useVirtualizer({
     count: table.getRowModel().rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 44,
+    estimateSize: () => 32,
     overscan: 15,
   });
 
@@ -155,14 +205,13 @@ export default function LogDataGrid() {
                 <th
                   key={header.id}
                   style={{
-                    width: header.getSize(),
                     position: "relative",
-                    textAlign: "left",
-                    padding: "0 12px",
-                    height: 44,
+                    width: header.getSize(),
+                    textAlign: "start",
+                    padding: "0 0.75rem",
+                    height: "2.5rem",
                     borderBottom: "1px solid var(--border)",
-                    userSelect: "none",
-                    background: "white",
+                    background: "var(--bg)",
                   }}
                 >
                   {flexRender(
@@ -177,9 +226,12 @@ export default function LogDataGrid() {
                       position: "absolute",
                       right: 0,
                       top: 0,
-                      width: 6,
-                      height: "100%",
+                      width: 2,
+                      height: "1.5rem",
+                      marginBlockStart: "0.5rem",
                       cursor: "col-resize",
+                      userSelect: "none",
+                      backgroundColor: "var(--text)",
                     }}
                   />
                 </th>
@@ -224,23 +276,41 @@ export default function LogDataGrid() {
                       tableLayout: "fixed",
                     }}
                   >
-                    {row.getVisibleCells().map((cell) => (
+                    {row.getVisibleCells().map((cell, index) => (
                       <td
-                        key={cell.id}
+                        key={`${virtualRow.key}-${index}`}
+                        data-index={virtualRow.index}
+                        ref={virtualizer.measureElement}
                         style={{
+                          ...(!expandedRows.has(row.id)
+                            ? {
+                                overflow: "hidden",
+                                whiteSpace: "nowrap",
+                                textOverflow: "ellipsis",
+                              }
+                            : {}),
                           width: cell.column.getSize(),
-                          height: 44,
-                          padding: "0 12px",
-                          overflow: "hidden",
-                          whiteSpace: "nowrap",
-                          textOverflow: "ellipsis",
-                          borderBottom: "1px solid #eee",
+                          padding: "5px 0.75rem",
+                          borderBottom: "1px solid var(--border)",
+                          fontSize: "0.8rem",
+                          lineHeight: "1.25",
                           fontVariantNumeric:
                             cell.column.id === "timestamp"
                               ? "tabular-nums"
                               : undefined,
+                          ...(index === 0
+                            ? {
+                                padding: "5px 0.75rem 3px",
+                              }
+                            : {}),
                         }}
                       >
+                        {index === 0 &&
+                          renderRowExpand({
+                            row,
+                            expandedRows,
+                            setExpandedRows,
+                          })}
                         {flexRender(
                           cell.column.columnDef.cell ??
                             (() => String(cell.getValue())),

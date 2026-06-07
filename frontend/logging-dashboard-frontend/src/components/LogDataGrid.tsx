@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
   type SetStateAction,
-  Dispatch,
+  type Dispatch,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 

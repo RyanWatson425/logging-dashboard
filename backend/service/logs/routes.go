@@ -97,7 +97,7 @@ func filterLogs(logs []LogSummary, logLevels []string, processes []uint64) []Log
 
 	filteredLogs := []LogSummary{}
 	for _, log := range logs {
-		if shouldRetainLogLevel(log) && shouldRetainProcess(log) {
+		if log.MessageType != "" && shouldRetainLogLevel(log) && shouldRetainProcess(log) {
 			filteredLogs = append(filteredLogs, log)
 		}
 	}

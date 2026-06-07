@@ -1,0 +1,13 @@
+.app-wrapper {
+  margin: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.grid-header {
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: start;
+  display: inline-flex;
+  padding: 0.5rem;
+}

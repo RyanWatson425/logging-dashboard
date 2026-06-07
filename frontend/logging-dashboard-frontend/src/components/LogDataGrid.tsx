@@ -17,7 +17,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { PAGE_SIZE } from "../constants";
 import { fetchLogs, type Logs } from "../hooks/useFetchLogs";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, Funnel } from "lucide-react";
 
 const STORAGE_KEY = "log-grid-column-widths";
 
@@ -218,7 +218,20 @@ export default function LogDataGrid() {
                     header.column.columnDef.header,
                     header.getContext(),
                   )}
-
+                  {header.column.columnDef.header === "Log Level" && (
+                    <Funnel
+                      size="20"
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: 0,
+                        height: "1.5rem",
+                        marginBlockStart: "0.5rem",
+                        cursor: "pointer",
+                        userSelect: "none",
+                      }}
+                    />
+                  )}
                   <div
                     onMouseDown={header.getResizeHandler()}
                     onTouchStart={header.getResizeHandler()}

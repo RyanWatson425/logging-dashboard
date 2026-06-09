@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useRef, useCallback, useState, useEffect } from "react";
 
 //  MessageType string // enum ["", "Info", "Error", "Default", "Debug"]
 // 	Timestamp string // YYYY-MM-DD HH:MM:SS.mmmmmm[+_]ZZZZ
@@ -8,7 +9,7 @@ import axios from "axios";
 // 	ProcessID uint64 // which process generated the log
 // 	ProcessImagePath string // human readable app name (ex. /usr/libexec/bluetoothd)
 // 	UserID uint64 // 0 root user, 1-499 syst
-type MessageType = "" | "Info" | "Error" | "Default" | "Debug";
+export type MessageType = "Info" | "Error" | "Default" | "Debug";
 
 export interface Logs {
   messageType: MessageType;
@@ -35,8 +36,7 @@ export interface GetLogsResponse {
   }[];
 }
 
-export interface FetchLogsParams {
-  page?: number;
+export interface UseFetchLogsParams {
   limit?: number;
   processes?: string[];
   logLevels?: MessageType[];
@@ -50,48 +50,85 @@ export interface FetchLogsResult {
   page: number;
 }
 
-export const fetchLogs = async ({
-  page = 0,
+const useFetchLogs = ({
   limit = 50,
   processes,
   logLevels,
   shouldRefresh,
   signal,
-}: FetchLogsParams): Promise<FetchLogsResult> => {
-  const url = new URL("http://localhost:8080/logs");
+}: UseFetchLogsParams) => {
+  const currentPage = useRef<number>(0);
+  const stringifiedParams = JSON.stringify({
+    limit,
+    processes,
+    logLevels,
+    shouldRefresh,
+  });
+  const currentOptions = useRef<string>(stringifiedParams);
+  const [rows, setRows] = useState<Logs[]>([]);
+  const [hasMore, setHasMore] = useState(true);
 
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("pageSize", String(limit));
-
-  if (processes) {
-    url.searchParams.set("processes", processes.toString());
+  if (stringifiedParams !== currentOptions.current) {
+    currentOptions.current = stringifiedParams;
+    currentPage.current = 0;
+    setRows([]);
   }
-  if (logLevels) {
-    url.searchParams.set("logLevels", logLevels.toString());
-  }
-  if (shouldRefresh) {
-    url.searchParams.set("shouldRefresh", String(shouldRefresh));
-  }
 
-  const response = await axios.get<GetLogsResponse>(url.toString(), { signal });
+  const fetchLogs = useCallback(async () => {
+    const page = currentPage.current;
+    currentPage.current += 1;
+    const url = new URL("http://localhost:8080/logs");
 
-  const formattedLogs = response.data.data.map((responseLog) => ({
-    messageType: responseLog.MessageType,
-    eventMessage: responseLog.EventMessage,
-    timestamp: responseLog.Timestamp,
-    subsystem: responseLog.Subsystem,
-    category: responseLog.Category,
-    processId: responseLog.ProcessId,
-    processImagePath: responseLog.ProcessImagePath,
-    userId: responseLog.UserID,
-  }));
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", String(limit));
 
-  // Determine if there are more pages based on whether we received a full page
-  const hasMore = formattedLogs.length === limit;
+    if (processes) {
+      url.searchParams.set("processes", JSON.stringify(processes));
+    }
+    if (logLevels) {
+      url.searchParams.set("logLevels", JSON.stringify(logLevels));
+    }
+    if (shouldRefresh) {
+      url.searchParams.set("shouldRefresh", String(shouldRefresh));
+    }
+
+    const response = await axios.get<GetLogsResponse>(url.toString(), {
+      signal,
+    });
+
+    const formattedLogs: Logs[] = response.data.data.map((responseLog) => ({
+      messageType: responseLog.MessageType,
+      eventMessage: responseLog.EventMessage,
+      timestamp: responseLog.Timestamp,
+      subsystem: responseLog.Subsystem,
+      category: responseLog.Category,
+      processId: responseLog.ProcessId,
+      processImagePath: responseLog.ProcessImagePath,
+      userId: responseLog.UserID,
+    }));
+
+    // Determine if there are more pages based on whether we received a full page
+    setHasMore(formattedLogs.length === limit);
+    setRows((prev) => [...prev, ...formattedLogs]);
+    setHasMore(formattedLogs.length === limit);
+  }, [
+    limit,
+    JSON.stringify(processes),
+    JSON.stringify(logLevels),
+    shouldRefresh,
+  ]);
+
+  useEffect(() => {
+    currentPage.current = 0;
+    setRows([]);
+    setHasMore(true);
+  }, [limit, processes, logLevels, shouldRefresh]);
 
   return {
-    rows: formattedLogs,
+    rows,
     hasMore,
-    page: hasMore ? page + 1 : page,
+    fetchLogs,
   };
 };
+
+export default useFetchLogs;

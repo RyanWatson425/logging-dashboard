@@ -16,8 +16,12 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { PAGE_SIZE } from "../constants";
-import { fetchLogs, type Logs } from "../hooks/useFetchLogs";
+import useFetchLogs, {
+  type MessageType,
+  type Logs,
+} from "../hooks/useFetchLogs";
 import { ChevronRight, ChevronDown, Funnel } from "lucide-react";
+import Checkbox from "./Checkbox";
 
 const STORAGE_KEY = "log-grid-column-widths";
 
@@ -53,16 +57,46 @@ const renderRowExpand = ({
   );
 };
 
+interface FilterCheckboxChangeFnParams {
+  currentFilter: MessageType;
+  setLogLevelFilters: Dispatch<SetStateAction<Set<MessageType>>>;
+}
+
+const filterCheckboxChangeFn = ({
+  currentFilter,
+  setLogLevelFilters,
+}: FilterCheckboxChangeFnParams) => {
+  setLogLevelFilters((prev) => {
+    const next = new Set(prev);
+    if (next.has(currentFilter)) {
+      next.delete(currentFilter);
+    } else {
+      next.add(currentFilter);
+    }
+    return next;
+  });
+};
+
 export default function LogDataGrid() {
   const parentRef = useRef<HTMLDivElement>(null);
-
-  const [rows, setRows] = useState<Logs[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState<number>(0);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(
     new Set<string>(),
   );
+  const [logLevelFilters, setLogLevelFilters] = useState<Set<MessageType>>(
+    new Set<MessageType>(["Default", "Info", "Debug", "Error"]),
+  );
+  console.log("loglevelFilters", logLevelFilters);
+  console.log('logLevelFilters.has("Default")', logLevelFilters.has("Default"));
+  const [showLogLevelFilters, setShowLogLevelFilters] = useState(false);
+  const fetchLogsParams = useMemo(
+    () => ({
+      limit: PAGE_SIZE,
+      logLevels: [...logLevelFilters],
+    }),
+    [logLevelFilters],
+  );
+  const { rows, hasMore, fetchLogs } = useFetchLogs(fetchLogsParams);
 
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(
     () => {
@@ -88,22 +122,15 @@ export default function LogDataGrid() {
     setLoading(true);
 
     try {
-      const result = await fetchLogs({
-        page,
-        limit: PAGE_SIZE,
-      });
-
-      setRows((prev) => [...prev, ...result.rows]);
-      setPage(result.page as number);
-      setHasMore(result.hasMore);
+      await fetchLogs();
     } finally {
       setLoading(false);
     }
-  }, [page, hasMore, loading]);
+  }, [hasMore, fetchLogs]);
 
   useEffect(() => {
     loadMore();
-  }, []);
+  }, [fetchLogs]);
 
   const columns = useMemo<ColumnDef<Logs>[]>(
     () => [
@@ -181,7 +208,7 @@ export default function LogDataGrid() {
     if (lastItem.index >= rows.length - 10 && hasMore && !loading) {
       loadMore();
     }
-  }, [virtualRows, rows.length, hasMore, loading, loadMore]);
+  }, [virtualRows, rows.length, hasMore, loadMore]);
 
   return (
     <div
@@ -219,18 +246,87 @@ export default function LogDataGrid() {
                     header.getContext(),
                   )}
                   {header.column.columnDef.header === "Log Level" && (
-                    <Funnel
-                      size="20"
+                    <div
                       style={{
                         position: "absolute",
-                        right: 8,
-                        top: 0,
+                        right: "0.5rem",
+                        top: "0.75rem",
                         height: "1.5rem",
-                        marginBlockStart: "0.5rem",
                         cursor: "pointer",
                         userSelect: "none",
                       }}
-                    />
+                    >
+                      <Funnel
+                        onClick={() => setShowLogLevelFilters((prev) => !prev)}
+                        size="20"
+                        style={{
+                          top: "1rem",
+                        }}
+                      />
+                      {showLogLevelFilters && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            display: "flex",
+                            flexDirection: "column",
+                            width: "6rem",
+                            borderRadius: "0.25rem",
+                            height: "fit-content",
+                            padding: "0.5rem",
+                            lineHeight: "1.5",
+                            backgroundColor: "var(--bg)",
+                            zIndex: 1,
+                            fontSize: "0.75rem",
+                            boxShadow: "0 4px 4px 0 #cccccc",
+                          }}
+                        >
+                          <Checkbox
+                            id="defaultCheckbox"
+                            label="Default"
+                            isChecked={logLevelFilters.has("Default")}
+                            onChange={() =>
+                              filterCheckboxChangeFn({
+                                currentFilter: "Default",
+                                setLogLevelFilters,
+                              })
+                            }
+                          />
+                          <Checkbox
+                            id="infoCheckbox"
+                            label="Info"
+                            isChecked={logLevelFilters.has("Info")}
+                            onChange={() =>
+                              filterCheckboxChangeFn({
+                                currentFilter: "Info",
+                                setLogLevelFilters,
+                              })
+                            }
+                          />
+                          <Checkbox
+                            id="debugCheckbox"
+                            label="Debug"
+                            isChecked={logLevelFilters.has("Debug")}
+                            onChange={() =>
+                              filterCheckboxChangeFn({
+                                currentFilter: "Debug",
+                                setLogLevelFilters,
+                              })
+                            }
+                          />
+                          <Checkbox
+                            id="errorCheckbox"
+                            label="Error"
+                            isChecked={logLevelFilters.has("Error")}
+                            onChange={() =>
+                              filterCheckboxChangeFn({
+                                currentFilter: "Error",
+                                setLogLevelFilters,
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
                   )}
                   <div
                     onMouseDown={header.getResizeHandler()}

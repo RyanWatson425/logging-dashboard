@@ -1,5 +1,7 @@
 .app-wrapper {
-  margin: 1rem;
+  --app-margin: 1rem;
+
+  margin: var(--app-margin);
   display: flex;
   flex-direction: column;
 }

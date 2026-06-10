@@ -4,7 +4,7 @@
   overflow: hidden;
 
   .headerTable {
-    width: 100%;
+    width: calc(100vw - 2 * var(--app-margin));
     table-layout: fixed;
     border-collapse: collapse;
 

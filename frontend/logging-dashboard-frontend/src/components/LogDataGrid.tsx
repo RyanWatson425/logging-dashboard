@@ -269,7 +269,6 @@ export default function LogDataGrid() {
           ))}
         </thead>
       </table>
-
       <div ref={parentRef} className={styles.bodyWrapper}>
         <div
           style={{
@@ -323,7 +322,6 @@ export default function LogDataGrid() {
             </tbody>
           </table>
         </div>
-
         {loading && <div className={styles.loading}>Loading...</div>}
       </div>
     </div>

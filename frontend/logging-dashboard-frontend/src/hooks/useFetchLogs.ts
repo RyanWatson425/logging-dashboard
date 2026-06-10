@@ -42,6 +42,7 @@ export interface UseFetchLogsParams {
   logLevels?: MessageType[];
   shouldRefresh?: boolean;
   signal?: AbortSignal;
+  search?: string;
 }
 
 export interface FetchLogsResult {
@@ -56,6 +57,7 @@ const useFetchLogs = ({
   logLevels,
   shouldRefresh,
   signal,
+  search,
 }: UseFetchLogsParams) => {
   const currentPage = useRef<number>(0);
   const stringifiedParams = JSON.stringify({
@@ -91,6 +93,9 @@ const useFetchLogs = ({
     if (shouldRefresh) {
       url.searchParams.set("shouldRefresh", String(shouldRefresh));
     }
+    if (search.length > 0) {
+      url.searchParams.set("search", search);
+    }
 
     const response = await axios.get<GetLogsResponse>(url.toString(), {
       signal,
@@ -116,13 +121,14 @@ const useFetchLogs = ({
     JSON.stringify(processes),
     JSON.stringify(logLevels),
     shouldRefresh,
+    search,
   ]);
 
   useEffect(() => {
     currentPage.current = 0;
     setRows([]);
     setHasMore(true);
-  }, [limit, processes, logLevels, shouldRefresh]);
+  }, [limit, processes, logLevels, shouldRefresh, search]);
 
   return {
     rows,

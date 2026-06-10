@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/RyanWatson425/logging-dashboard/utils"
@@ -75,10 +76,11 @@ func LogToLogSummary(logs []Log) []LogSummary {
 	return retVal
 }
 
-func filterLogs(logs []LogSummary, logLevels []string, processes []uint64) []LogSummary {
+func filterLogs(logs []LogSummary, logLevels []string, processes []uint64, searchParam string) []LogSummary {
 	shouldFilterLevels := len(logLevels) > 0
 	shouldFilterProcesses := len(processes) > 0
-	if !shouldFilterLevels && !shouldFilterProcesses {
+	shouldUseSearchParam := len(searchParam) > 0
+	if !shouldFilterLevels && !shouldFilterProcesses && !shouldUseSearchParam {
 		return logs
 	}
 
@@ -88,16 +90,31 @@ func filterLogs(logs []LogSummary, logLevels []string, processes []uint64) []Log
 		}
 		return false
 	}
+
 	shouldRetainProcess := func (log LogSummary) bool {
 		if !shouldFilterProcesses || slices.Contains(processes, log.ProcessID) {
 			return true
 		}
 		return false
 	}
+	
+	matchesSearchParam := func (log LogSummary) bool {
+		if !shouldUseSearchParam ||
+		strings.Contains(log.Category, searchParam) ||
+		strings.Contains(log.EventMessage, searchParam) ||
+		strings.Contains(log.MessageType, searchParam) ||
+		strings.Contains(log.ProcessImagePath, searchParam) ||
+		strings.Contains(log.Subsystem, searchParam) ||
+		strings.Contains(log.Timestamp, searchParam) {
+			return true
+		}
+
+		return false
+	}
 
 	filteredLogs := []LogSummary{}
 	for _, log := range logs {
-		if log.MessageType != "" && shouldRetainLogLevel(log) && shouldRetainProcess(log) {
+		if log.MessageType != "" && shouldRetainLogLevel(log) && shouldRetainProcess(log) && matchesSearchParam(log) {
 			filteredLogs = append(filteredLogs, log)
 		}
 	}
@@ -111,6 +128,7 @@ type LogQueryParams struct {
 	LogLevels []string
 	shouldRefresh bool
 	processes []uint64
+	searchParam string
 }
 
 func fetchLogs(queryParams LogQueryParams) ([]LogSummary, time.Time, error) {
@@ -134,7 +152,7 @@ func fetchLogs(queryParams LogQueryParams) ([]LogSummary, time.Time, error) {
 	}
 
 	// Filter by query params
-	currentLogs = filterLogs(currentLogs, queryParams.LogLevels, queryParams.processes)
+	currentLogs = filterLogs(currentLogs, queryParams.LogLevels, queryParams.processes, queryParams.searchParam)
 
 	// Handle pagination
 	pageStartIdx := queryParams.PageSize * queryParams.Page
@@ -188,12 +206,17 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Failed to unmarshal processes query parameter: %v", err), http.StatusBadRequest)
 		}
 	}
+	searchParam := ""
+	if queryParamsMap.Has("search") {
+		searchParam = queryParamsMap.Get("searchParam");
+	}
 	queryParams := LogQueryParams{
 		Page: currentPage,
 		PageSize: 20,
 		LogLevels: logLevels,
 		shouldRefresh: shouldRefresh,
 		processes: processes,
+		searchParam: searchParam,
 	}
 	summarizedLogs, fetchedAt, err := fetchLogs(queryParams)
 	if err != nil {

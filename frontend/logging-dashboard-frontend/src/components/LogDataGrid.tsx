@@ -20,6 +20,7 @@ import { PAGE_SIZE } from "../constants";
 import useFetchLogs, {
   type MessageType,
   type Logs,
+  type UseFetchLogsParams,
 } from "../hooks/useFetchLogs";
 import { ChevronRight, ChevronDown, Funnel } from "lucide-react";
 import Checkbox from "./Checkbox";
@@ -113,7 +114,11 @@ const columns: ColumnDef<Logs>[] = [
   },
 ];
 
-export default function LogDataGrid() {
+interface LogDataGridParams {
+  search: string;
+}
+
+export default function LogDataGrid({ search }: LogDataGridParams) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(
@@ -123,12 +128,13 @@ export default function LogDataGrid() {
     new Set<MessageType>(["Default", "Info", "Debug", "Error"]),
   );
   const [showLogLevelFilters, setShowLogLevelFilters] = useState(false);
-  const fetchLogsParams = useMemo(
+  const fetchLogsParams: UseFetchLogsParams = useMemo(
     () => ({
       limit: PAGE_SIZE,
       logLevels: [...logLevelFilters],
+      search,
     }),
-    [logLevelFilters],
+    [logLevelFilters, search],
   );
   const { rows, hasMore, fetchLogs } = useFetchLogs(fetchLogsParams);
 

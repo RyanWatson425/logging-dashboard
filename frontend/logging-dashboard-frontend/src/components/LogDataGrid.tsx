@@ -4,6 +4,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import type { ColumnDef, Row } from "@tanstack/react-table";
+import clsx from "clsx";
 import {
   useCallback,
   useEffect,
@@ -22,6 +23,8 @@ import useFetchLogs, {
 } from "../hooks/useFetchLogs";
 import { ChevronRight, ChevronDown, Funnel } from "lucide-react";
 import Checkbox from "./Checkbox";
+
+import styles from "./LogDataGrid.module.scss";
 
 const STORAGE_KEY = "log-grid-column-widths";
 
@@ -77,6 +80,39 @@ const filterCheckboxChangeFn = ({
   });
 };
 
+const columns: ColumnDef<Logs>[] = [
+  {
+    accessorKey: "expandButton",
+    header: "",
+    size: 32,
+    minSize: 32,
+  },
+  {
+    accessorKey: "messageType",
+    header: "Log Level",
+    size: 140,
+    minSize: 100,
+  },
+  {
+    accessorKey: "subsystem",
+    header: "Subsystem",
+    size: 220,
+    minSize: 150,
+  },
+  {
+    accessorKey: "eventMessage",
+    header: "Message",
+    size: 700,
+    minSize: 300,
+  },
+  {
+    accessorKey: "timestamp",
+    header: "Timestamp",
+    size: 250,
+    minSize: 200,
+  },
+];
+
 export default function LogDataGrid() {
   const parentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
@@ -86,8 +122,6 @@ export default function LogDataGrid() {
   const [logLevelFilters, setLogLevelFilters] = useState<Set<MessageType>>(
     new Set<MessageType>(["Default", "Info", "Debug", "Error"]),
   );
-  console.log("loglevelFilters", logLevelFilters);
-  console.log('logLevelFilters.has("Default")', logLevelFilters.has("Default"));
   const [showLogLevelFilters, setShowLogLevelFilters] = useState(false);
   const fetchLogsParams = useMemo(
     () => ({
@@ -128,46 +162,6 @@ export default function LogDataGrid() {
     }
   }, [hasMore, fetchLogs]);
 
-  useEffect(() => {
-    loadMore();
-  }, [fetchLogs]);
-
-  const columns = useMemo<ColumnDef<Logs>[]>(
-    () => [
-      {
-        accessorKey: "expandButton",
-        header: "",
-        size: 32,
-        minSize: 32,
-      },
-      {
-        accessorKey: "messageType",
-        header: "Log Level",
-        size: 140,
-        minSize: 100,
-      },
-      {
-        accessorKey: "subsystem",
-        header: "Subsystem",
-        size: 220,
-        minSize: 150,
-      },
-      {
-        accessorKey: "eventMessage",
-        header: "Message",
-        size: 700,
-        minSize: 300,
-      },
-      {
-        accessorKey: "timestamp",
-        header: "Timestamp",
-        size: 250,
-        minSize: 200,
-      },
-    ],
-    [],
-  );
-
   const table = useReactTable({
     data: rows,
     columns,
@@ -198,6 +192,26 @@ export default function LogDataGrid() {
 
   const virtualRows = virtualizer.getVirtualItems();
 
+  const MessageTypeFilterCheckbox = ({ label }: { label: MessageType }) => (
+    <Checkbox
+      id={`${label}Checkbox`}
+      label={label}
+      isChecked={logLevelFilters.has(label)}
+      onChange={() =>
+        filterCheckboxChangeFn({
+          currentFilter: label,
+          setLogLevelFilters,
+        })
+      }
+    />
+  );
+
+  // fetches more logs when options change
+  useEffect(() => {
+    loadMore();
+  }, [fetchLogs]);
+
+  // fetches logs upon reaching the end of the table
   useEffect(() => {
     const lastItem = virtualRows[virtualRows.length - 1];
 
@@ -211,34 +225,17 @@ export default function LogDataGrid() {
   }, [virtualRows, rows.length, hasMore, loadMore]);
 
   return (
-    <div
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: 16,
-        overflow: "hidden",
-      }}
-    >
-      <table
-        style={{
-          width: "100%",
-          tableLayout: "fixed",
-          borderCollapse: "collapse",
-        }}
-      >
+    <div className={styles.wrapper}>
+      <table className={styles.headerTable}>
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th
+                  className={styles.headerRow}
                   key={header.id}
                   style={{
-                    position: "relative",
                     width: header.getSize(),
-                    textAlign: "start",
-                    padding: "0 0.75rem",
-                    height: "2.5rem",
-                    borderBottom: "1px solid var(--border)",
-                    background: "var(--bg)",
                   }}
                 >
                   {flexRender(
@@ -246,84 +243,17 @@ export default function LogDataGrid() {
                     header.getContext(),
                   )}
                   {header.column.columnDef.header === "Log Level" && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        right: "0.5rem",
-                        top: "0.75rem",
-                        height: "1.5rem",
-                        cursor: "pointer",
-                        userSelect: "none",
-                      }}
-                    >
+                    <div className={styles.headerFilter}>
                       <Funnel
                         onClick={() => setShowLogLevelFilters((prev) => !prev)}
                         size="20"
-                        style={{
-                          top: "1rem",
-                        }}
                       />
                       {showLogLevelFilters && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            display: "flex",
-                            flexDirection: "column",
-                            width: "6rem",
-                            borderRadius: "0.25rem",
-                            height: "fit-content",
-                            padding: "0.5rem",
-                            lineHeight: "1.5",
-                            backgroundColor: "var(--bg)",
-                            zIndex: 1,
-                            fontSize: "0.75rem",
-                            boxShadow: "0 4px 4px 0 #cccccc",
-                          }}
-                        >
-                          <Checkbox
-                            id="defaultCheckbox"
-                            label="Default"
-                            isChecked={logLevelFilters.has("Default")}
-                            onChange={() =>
-                              filterCheckboxChangeFn({
-                                currentFilter: "Default",
-                                setLogLevelFilters,
-                              })
-                            }
-                          />
-                          <Checkbox
-                            id="infoCheckbox"
-                            label="Info"
-                            isChecked={logLevelFilters.has("Info")}
-                            onChange={() =>
-                              filterCheckboxChangeFn({
-                                currentFilter: "Info",
-                                setLogLevelFilters,
-                              })
-                            }
-                          />
-                          <Checkbox
-                            id="debugCheckbox"
-                            label="Debug"
-                            isChecked={logLevelFilters.has("Debug")}
-                            onChange={() =>
-                              filterCheckboxChangeFn({
-                                currentFilter: "Debug",
-                                setLogLevelFilters,
-                              })
-                            }
-                          />
-                          <Checkbox
-                            id="errorCheckbox"
-                            label="Error"
-                            isChecked={logLevelFilters.has("Error")}
-                            onChange={() =>
-                              filterCheckboxChangeFn({
-                                currentFilter: "Error",
-                                setLogLevelFilters,
-                              })
-                            }
-                          />
+                        <div className={styles.headerFilterPopover}>
+                          <MessageTypeFilterCheckbox label={"Default"} />
+                          <MessageTypeFilterCheckbox label={"Info"} />
+                          <MessageTypeFilterCheckbox label={"Debug"} />
+                          <MessageTypeFilterCheckbox label={"Error"} />
                         </div>
                       )}
                     </div>
@@ -331,17 +261,7 @@ export default function LogDataGrid() {
                   <div
                     onMouseDown={header.getResizeHandler()}
                     onTouchStart={header.getResizeHandler()}
-                    style={{
-                      position: "absolute",
-                      right: 0,
-                      top: 0,
-                      width: 2,
-                      height: "1.5rem",
-                      marginBlockStart: "0.5rem",
-                      cursor: "col-resize",
-                      userSelect: "none",
-                      backgroundColor: "var(--text)",
-                    }}
+                    className={styles.resizeHandler}
                   />
                 </th>
               ))}
@@ -350,26 +270,14 @@ export default function LogDataGrid() {
         </thead>
       </table>
 
-      <div
-        ref={parentRef}
-        style={{
-          height: 360,
-          overflow: "auto",
-        }}
-      >
+      <div ref={parentRef} className={styles.bodyWrapper}>
         <div
           style={{
             height: virtualizer.getTotalSize(),
             position: "relative",
           }}
         >
-          <table
-            style={{
-              width: "100%",
-              tableLayout: "fixed",
-              borderCollapse: "collapse",
-            }}
-          >
+          <table className={styles.bodyTable}>
             <tbody>
               {virtualRows.map((virtualRow) => {
                 const row = table.getRowModel().rows[virtualRow.index];
@@ -377,12 +285,9 @@ export default function LogDataGrid() {
                 return (
                   <tr
                     key={row.id}
+                    className={styles.bodyRow}
                     style={{
-                      position: "absolute",
                       transform: `translateY(${virtualRow.start}px)`,
-                      width: "100%",
-                      display: "table",
-                      tableLayout: "fixed",
                     }}
                   >
                     {row.getVisibleCells().map((cell, index) => (
@@ -390,28 +295,13 @@ export default function LogDataGrid() {
                         key={`${virtualRow.key}-${index}`}
                         data-index={virtualRow.index}
                         ref={virtualizer.measureElement}
+                        className={clsx({
+                          [styles.bodyCell]: true,
+                          [styles.firstCell]: index === 0,
+                          [styles.collapsedCell]: !expandedRows.has(row.id),
+                        })}
                         style={{
-                          ...(!expandedRows.has(row.id)
-                            ? {
-                                overflow: "hidden",
-                                whiteSpace: "nowrap",
-                                textOverflow: "ellipsis",
-                              }
-                            : {}),
                           width: cell.column.getSize(),
-                          padding: "5px 0.75rem",
-                          borderBottom: "1px solid var(--border)",
-                          fontSize: "0.8rem",
-                          lineHeight: "1.25",
-                          fontVariantNumeric:
-                            cell.column.id === "timestamp"
-                              ? "tabular-nums"
-                              : undefined,
-                          ...(index === 0
-                            ? {
-                                padding: "5px 0.75rem 3px",
-                              }
-                            : {}),
                         }}
                       >
                         {index === 0 &&
@@ -434,16 +324,7 @@ export default function LogDataGrid() {
           </table>
         </div>
 
-        {loading && (
-          <div
-            style={{
-              padding: 16,
-              textAlign: "center",
-            }}
-          >
-            Loading...
-          </div>
-        )}
+        {loading && <div className={styles.loading}>Loading...</div>}
       </div>
     </div>
   );

@@ -65,6 +65,7 @@ const useFetchLogs = ({
     processes,
     logLevels,
     shouldRefresh,
+    search,
   });
   const currentOptions = useRef<string>(stringifiedParams);
   const [rows, setRows] = useState<Logs[]>([]);

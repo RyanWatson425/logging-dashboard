@@ -102,13 +102,10 @@ func filterLogs(logs []LogSummary, logLevels []string, processes []uint64, searc
 		if !shouldUseSearchParam ||
 		strings.Contains(log.Category, searchParam) ||
 		strings.Contains(log.EventMessage, searchParam) ||
-		strings.Contains(log.MessageType, searchParam) ||
 		strings.Contains(log.ProcessImagePath, searchParam) ||
-		strings.Contains(log.Subsystem, searchParam) ||
-		strings.Contains(log.Timestamp, searchParam) {
+		strings.Contains(log.Subsystem, searchParam) {
 			return true
 		}
-
 		return false
 	}
 
@@ -208,7 +205,7 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	searchParam := ""
 	if queryParamsMap.Has("search") {
-		searchParam = queryParamsMap.Get("searchParam");
+		searchParam = queryParamsMap.Get("search");
 	}
 	queryParams := LogQueryParams{
 		Page: currentPage,
@@ -222,15 +219,6 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to call fetchLogs: %v", err), http.StatusInternalServerError)
 	}
-
-	// if queryParamsMap.Has("logLevels") {
-	// 	var logLevels []string
-	// 	err := json.Unmarshal([]byte(queryParamsMap.Get("logLevels")), &logLevels)
-	// 	if err != nil {
-	// 		http.Error(w, fmt.Sprintf("Failed to unmarhsal logLevels query parameter: %v", err), http.StatusBadRequest)
-	// 	}
-	// 	summarizedLogs = filterLogLevels(summarizedLogs, logLevels)
-	// }
 
 	returnBody := struct{ FetchedAt time.Time `json:"fetchedAt"`; Data []LogSummary `json:"data"` }{ FetchedAt: fetchedAt, Data: summarizedLogs }
 

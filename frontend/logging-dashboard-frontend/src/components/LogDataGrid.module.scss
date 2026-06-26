@@ -2,6 +2,8 @@
   border: 1px solid var(--border);
   border-radius: 1rem;
   overflow: hidden;
+  max-height: calc(100vh - 5rem);
+  height: calc(100vh - 5rem);
 
   .headerTable {
     width: calc(100vw - 2 * var(--app-margin));
@@ -40,7 +42,8 @@
           position: absolute;
           display: flex;
           flex-direction: column;
-          width: 6rem;
+          width: max(6rem, fit-content);
+          max-height: 12rem;
           border-radius: 0.25rem;
           height: fit-content;
           padding: 0.5rem;
@@ -49,13 +52,14 @@
           z-index: 1;
           font-size: 0.75rem;
           box-shadow: 0 4px 4px 0 #cccccc;
+          overflow-y: scroll;
         }
       }
     }
   }
 
   .bodyWrapper {
-    height: 360px;
+    height: 80vh;
     overflow: auto;
 
     .loading {

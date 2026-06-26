@@ -61,16 +61,16 @@ const renderRowExpand = ({
   );
 };
 
-interface FilterCheckboxChangeFnParams {
-  currentFilter: MessageType;
-  setLogLevelFilters: Dispatch<SetStateAction<Set<MessageType>>>;
+interface FilterCheckboxChangeFnParams<T> {
+  currentFilter: T;
+  setFilter: Dispatch<SetStateAction<Set<T>>>;
 }
 
-const filterCheckboxChangeFn = ({
+const filterCheckboxChangeFn = <T,>({
   currentFilter,
-  setLogLevelFilters,
-}: FilterCheckboxChangeFnParams) => {
-  setLogLevelFilters((prev) => {
+  setFilter,
+}: FilterCheckboxChangeFnParams<T>) => {
+  setFilter((prev) => {
     const next = new Set(prev);
     if (next.has(currentFilter)) {
       next.delete(currentFilter);
@@ -125,18 +125,24 @@ export default function LogDataGrid({ search }: LogDataGridParams) {
     new Set<string>(),
   );
   const [logLevelFilters, setLogLevelFilters] = useState<Set<MessageType>>(
-    new Set<MessageType>(["Default", "Info", "Debug", "Error"]),
+    new Set<MessageType>([]),
+  );
+  const [subsystemFilters, setSubsystemFilters] = useState<Set<string>>(
+    new Set<string>([]),
   );
   const [showLogLevelFilters, setShowLogLevelFilters] = useState(false);
+  const [showSubsystemFilters, setShowSubsystemFilters] = useState(false);
   const fetchLogsParams: UseFetchLogsParams = useMemo(
     () => ({
       limit: PAGE_SIZE,
       logLevels: [...logLevelFilters],
+      subsystemsFilters: [...subsystemFilters],
       search,
     }),
-    [logLevelFilters, search],
+    [logLevelFilters, subsystemFilters, search],
   );
-  const { rows, hasMore, fetchLogs } = useFetchLogs(fetchLogsParams);
+  const { rows, subsystems, hasMore, fetchLogs } =
+    useFetchLogs(fetchLogsParams);
 
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(
     () => {
@@ -204,9 +210,23 @@ export default function LogDataGrid({ search }: LogDataGridParams) {
       label={label}
       isChecked={logLevelFilters.has(label)}
       onChange={() =>
-        filterCheckboxChangeFn({
+        filterCheckboxChangeFn<MessageType>({
           currentFilter: label,
-          setLogLevelFilters,
+          setFilter: setLogLevelFilters,
+        })
+      }
+    />
+  );
+
+  const SubsystemFilterCheckbox = ({ label }: { label: string }) => (
+    <Checkbox
+      id={`${label}Checkbox`}
+      label={label}
+      isChecked={subsystemFilters.has(label)}
+      onChange={() =>
+        filterCheckboxChangeFn<string>({
+          currentFilter: label,
+          setFilter: setSubsystemFilters,
         })
       }
     />
@@ -260,6 +280,21 @@ export default function LogDataGrid({ search }: LogDataGridParams) {
                           <MessageTypeFilterCheckbox label={"Info"} />
                           <MessageTypeFilterCheckbox label={"Debug"} />
                           <MessageTypeFilterCheckbox label={"Error"} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {header.column.columnDef.header === "Subsystem" && (
+                    <div className={styles.headerFilter}>
+                      <Funnel
+                        onClick={() => setShowSubsystemFilters((prev) => !prev)}
+                        size="20"
+                      />
+                      {showSubsystemFilters && (
+                        <div className={styles.headerFilterPopover}>
+                          {subsystems?.map((subsystem) => (
+                            <SubsystemFilterCheckbox label={subsystem} />
+                          ))}
                         </div>
                       )}
                     </div>

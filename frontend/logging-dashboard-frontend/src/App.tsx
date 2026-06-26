@@ -1,11 +1,10 @@
 import "./App.css";
 
-import Dashboard from "./Dashboard";
+import Dashboard from "./components/Dashboard";
 
 const App = () => {
   return (
     <div className="app-wrapper">
-      <h1>title</h1>
       <Dashboard />
     </div>
   );

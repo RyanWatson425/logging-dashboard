@@ -34,11 +34,13 @@ export interface GetLogsResponse {
     ProcessImagePath: string;
     UserID: number;
   }[];
+  subsystems: string[];
 }
 
 export interface UseFetchLogsParams {
   limit?: number;
   processes?: string[];
+  subsystemsFilters?: string[];
   logLevels?: MessageType[];
   shouldRefresh?: boolean;
   signal?: AbortSignal;
@@ -47,6 +49,7 @@ export interface UseFetchLogsParams {
 
 export interface FetchLogsResult {
   rows: Logs[];
+  subsystems: string[];
   hasMore: boolean;
   page: number;
 }
@@ -55,6 +58,7 @@ const useFetchLogs = ({
   limit = 50,
   processes,
   logLevels,
+  subsystemsFilters,
   shouldRefresh,
   signal,
   search,
@@ -64,17 +68,21 @@ const useFetchLogs = ({
     limit,
     processes,
     logLevels,
+    subsystems: subsystemsFilters,
     shouldRefresh,
     search,
   });
   const currentOptions = useRef<string>(stringifiedParams);
+  const prevSearch = useRef<string>(search);
   const [rows, setRows] = useState<Logs[]>([]);
+  const [subsystems, setSubsystems] = useState<string[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
   if (stringifiedParams !== currentOptions.current) {
     currentOptions.current = stringifiedParams;
     currentPage.current = 0;
     setRows([]);
+    setSubsystems([]);
   }
 
   const fetchLogs = useCallback(async () => {
@@ -88,13 +96,17 @@ const useFetchLogs = ({
     if (processes) {
       url.searchParams.set("processes", JSON.stringify(processes));
     }
-    if (logLevels) {
+    if (logLevels.length > 0) {
       url.searchParams.set("logLevels", JSON.stringify(logLevels));
+    }
+    if (subsystemsFilters.length > 0) {
+      url.searchParams.set("subsystems", JSON.stringify(subsystemsFilters));
     }
     if (shouldRefresh) {
       url.searchParams.set("shouldRefresh", String(shouldRefresh));
     }
-    if (search.length > 0) {
+    if (search.length > 0 || prevSearch.current.length > 0) {
+      prevSearch.current = search;
       url.searchParams.set("search", search);
     }
 
@@ -116,11 +128,14 @@ const useFetchLogs = ({
     // Determine if there are more pages based on whether we received a full page
     setHasMore(formattedLogs.length === limit);
     setRows((prev) => [...prev, ...formattedLogs]);
+    if (response.data.subsystems.length > 0)
+      setSubsystems(response.data.subsystems);
     setHasMore(formattedLogs.length === limit);
   }, [
     limit,
     JSON.stringify(processes),
     JSON.stringify(logLevels),
+    JSON.stringify(subsystemsFilters),
     shouldRefresh,
     search,
   ]);
@@ -128,11 +143,13 @@ const useFetchLogs = ({
   useEffect(() => {
     currentPage.current = 0;
     setRows([]);
+    setSubsystems([]);
     setHasMore(true);
   }, [limit, processes, logLevels, shouldRefresh, search]);
 
   return {
     rows,
+    subsystems,
     hasMore,
     fetchLogs,
   };

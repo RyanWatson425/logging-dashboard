@@ -76,16 +76,24 @@ func LogToLogSummary(logs []Log) []LogSummary {
 	return retVal
 }
 
-func filterLogs(logs []LogSummary, logLevels []string, processes []uint64, searchParam string) []LogSummary {
+func filterLogs(logs []LogSummary, logLevels []string, processes []uint64, subsystems []string, searchParam string) []LogSummary {
 	shouldFilterLevels := len(logLevels) > 0
 	shouldFilterProcesses := len(processes) > 0
+	shouldFilterSubsystems := len(subsystems) > 0
 	shouldUseSearchParam := len(searchParam) > 0
-	if !shouldFilterLevels && !shouldFilterProcesses && !shouldUseSearchParam {
+	if !shouldFilterLevels && !shouldFilterProcesses && !shouldUseSearchParam && !shouldFilterSubsystems {
 		return logs
 	}
 
 	shouldRetainLogLevel := func (log LogSummary) bool {
 		if !shouldFilterLevels || slices.Contains(logLevels, log.MessageType) {
+			return true
+		}
+		return false
+	}
+
+	shouldRetainSubsystem := func (log LogSummary) bool {
+		if !shouldFilterSubsystems || slices.Contains(subsystems, log.Subsystem) {
 			return true
 		}
 		return false
@@ -97,6 +105,7 @@ func filterLogs(logs []LogSummary, logLevels []string, processes []uint64, searc
 		}
 		return false
 	}
+	
 	
 	matchesSearchParam := func (log LogSummary) bool {
 		if !shouldUseSearchParam ||
@@ -111,7 +120,7 @@ func filterLogs(logs []LogSummary, logLevels []string, processes []uint64, searc
 
 	filteredLogs := []LogSummary{}
 	for _, log := range logs {
-		if log.MessageType != "" && shouldRetainLogLevel(log) && shouldRetainProcess(log) && matchesSearchParam(log) {
+		if log.MessageType != "" && shouldRetainLogLevel(log) && shouldRetainSubsystem(log) && shouldRetainProcess(log) && matchesSearchParam(log) {
 			filteredLogs = append(filteredLogs, log)
 		}
 	}
@@ -123,6 +132,7 @@ type LogQueryParams struct {
 	Page int
 	PageSize int
 	LogLevels []string
+	Subsystems []string
 	shouldRefresh bool
 	processes []uint64
 	searchParam string
@@ -149,14 +159,14 @@ func fetchLogs(queryParams LogQueryParams) ([]LogSummary, time.Time, error) {
 	}
 
 	// Filter by query params
-	currentLogs = filterLogs(currentLogs, queryParams.LogLevels, queryParams.processes, queryParams.searchParam)
+	currentLogs = filterLogs(currentLogs, queryParams.LogLevels, queryParams.processes, queryParams.Subsystems, queryParams.searchParam)
 
 	// Handle pagination
 	pageStartIdx := queryParams.PageSize * queryParams.Page
 	pageEndIdx := queryParams.PageSize + queryParams.PageSize * queryParams.Page
 	if len(currentLogs) < pageStartIdx {
 		currentLogs = make([]LogSummary, 0)
-	} else if len(currentLogs) > pageStartIdx && len(currentLogs) <= pageEndIdx {
+	} else if len(currentLogs) >= pageStartIdx && len(currentLogs) <= pageEndIdx {
 		currentLogs = currentLogs[pageStartIdx:]
 	} else {
 		currentLogs = currentLogs[pageStartIdx:pageEndIdx]
@@ -196,6 +206,13 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Failed to unmarshal logLevels query parameter: %v", err), http.StatusBadRequest)
 		}
 	}
+	subsystemsQueryParams := make([]string, 0)
+	if queryParamsMap.Has("subsystems") {
+		err := json.Unmarshal([]byte(queryParamsMap.Get("subsystems")), &subsystemsQueryParams)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to unmarshal subsystems query parameter: %v", err), http.StatusBadRequest)
+		}
+	}
 	processes := make([]uint64, 0)
 	if queryParamsMap.Has("processes") {
 		err := json.Unmarshal([]byte(queryParamsMap.Get("processes")), &processes)
@@ -211,6 +228,7 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 		Page: currentPage,
 		PageSize: 20,
 		LogLevels: logLevels,
+		Subsystems: subsystemsQueryParams,
 		shouldRefresh: shouldRefresh,
 		processes: processes,
 		searchParam: searchParam,
@@ -220,7 +238,17 @@ func HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to call fetchLogs: %v", err), http.StatusInternalServerError)
 	}
 
-	returnBody := struct{ FetchedAt time.Time `json:"fetchedAt"`; Data []LogSummary `json:"data"` }{ FetchedAt: fetchedAt, Data: summarizedLogs }
+	subsystems := GetLogSubsystems()
+
+	returnBody := struct{
+		FetchedAt time.Time `json:"fetchedAt"`;
+		Subsystems []string `json:"subsystems"`;
+		Data []LogSummary `json:"data"`;
+	}{
+		FetchedAt: fetchedAt,
+		Subsystems: subsystems,
+		Data: summarizedLogs,
+	}
 
 	jsonReturnBody, err := json.MarshalIndent(returnBody, "", "  ")
 	if err != nil {

@@ -1,7 +1,8 @@
-import { Columns3Cog } from "lucide-react";
-import LogDataGrid from "./components/LogDataGrid";
-import useDebounce from "./hooks/useDebounce";
+import LogDataGrid from "./LogDataGrid";
+import useDebounce from "../hooks/useDebounce";
 import { useState } from "react";
+
+import styles from "./Dashboard.module.scss";
 
 const Dashboard = () => {
   const { value: debouncedSearch, setValue: setDebouncedSearch } = useDebounce({
@@ -12,7 +13,7 @@ const Dashboard = () => {
 
   return (
     <>
-      <div className="grid-header">
+      <div className={styles.gridHeader}>
         <input
           placeholder="Search"
           value={search}
@@ -20,8 +21,10 @@ const Dashboard = () => {
             setDebouncedSearch(e.target.value);
             setSearch(e.target.value);
           }}
+          className={styles.search}
         />
-        <Columns3Cog />
+        <h2>System Logs Dashboard</h2>
+        <div className={styles.placeholder} />
       </div>
       <LogDataGrid search={debouncedSearch} />
     </>

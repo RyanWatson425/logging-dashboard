@@ -67,9 +67,7 @@ The backend will start on `localhost:8080`.
 
 The frontend will start on `localhost:5173`.
 
-### Running Both Services
-
-Open two terminal windows to run both the backend and frontend simultaneously. The frontend will communicate with the backend API to fetch and display log data.
+### Running Both Services is Required
 
 ## Project Structure
 
